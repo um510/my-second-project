@@ -9,3 +9,6 @@
 - テスト追加-main02-
 - 2026/03/07 insert main 追加
 - 勉強①
+- 2026/03/08 insert main feature/main-test02
+- 勉強②
+
