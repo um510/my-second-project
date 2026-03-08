@@ -1,76 +1,79 @@
-<!doctype html>
+  <!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>商品マスタ - モック画面</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>メニュー画面</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', 'Meiryo', Arial, sans-serif; }
+    body { margin: 0; background: #d3d3d3; color: #222; }
+    .screen {
+      min-height: 100vh;
+      display: grid;
+      justify-items: center;
+      align-content: start;
+      padding: 72px 24px 24px;
+    }
+    .panel {
+      width: min(560px, 96vw);
+      padding: 28px;
+    }
+    .title {
+      margin: 0 0 22px;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-align: center;
+    }
+    .menu-list {
+      display: grid;
+      gap: 12px;
+    }
+    .menu-link {
+      display: block;
+      text-decoration: none;
+      color: #111;
+      background: #fff2cc;
+      border: 1px solid #d6b656;
+      padding: 14px 16px;
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .menu-link:hover { background: #ffe8a1; }
+    .button-row {
+      margin-top: clamp(120px, 28vh, 260px);
+      display: flex;
+      justify-content: flex-end;
+    }
+    .btn {
+      padding: 8px 20px;
+      background-color: #eeeeee;
+      border: 1px solid #36393d;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .btn:hover { background-color: #d9d9d9; }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <div class="title">＜商品マスタ画面＞</div>
-    
-    <!-- 上部：商品一覧テーブル -->
-    <table class="product-table">
-      <thead>
-        <tr>
-          <th>コード</th>
-          <th>名称</th>
-          <th>金額</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="code">10</td>
-          <td class="name">鉛筆</td>
-          <td class="price">110</td>
-        </tr>
-        <tr>
-          <td class="code">20</td>
-          <td class="name">ボールペン</td>
-          <td class="price">120</td>
-        </tr>
-        <tr>
-          <td class="code">21</td>
-          <td class="name">消しゴム</td>
-          <td class="price">80</td>
-        </tr>
-        <tr>
-          <td class="code">30</td>
-          <td class="name">ハサミ</td>
-          <td class="price">200</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- 下部：入力フォーム（テーブル形式） -->
-    <table class="input-table">
-      <thead>
-        <tr>
-          <th>コード</th>
-          <th>名称</th>
-          <th>金額</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><input type="text" id="code" maxlength="10" inputmode="numeric" pattern="[0-9]*"></td>
-          <td><input type="text" id="name" maxlength="50"></td>
-          <td><input type="number" id="price" min="0"></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- ボタングループ -->
-    <!-- ボタングループ：商品の作成、更新、削除、終了の操作ボタン -->
-    <div class="button-group">
-      <button class="btn" id="create">作成</button>
-      <button class="btn" id="update">更新</button>
-      <button class="btn" id="delete">削除</button>
-      <button class="btn" id="close">終了</button>
-    </div>
-  </div>
-
-  <script src="script.js"></script>
+  <main class="screen">
+    <section class="panel" aria-label="メニュー画面">
+      <h1 class="title">＜メニュー画面＞</h1>
+      <nav class="menu-list">
+        <a class="menu-link" href="mock/menu01.html">商品マスタ画面</a>
+      </nav>
+      <div class="button-row">
+        <button class="btn" id="close">終了</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    document.getElementById('close').addEventListener('click', () => {
+      window.close();
+    });
+  </script>
 </body>
 </html>
