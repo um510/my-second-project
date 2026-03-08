@@ -298,13 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   closeBtn.addEventListener('click', () => {
-    // 開かれ方によって window.close が無効な場合があるため、メニューへ戻るフォールバックを用意する。
-    window.close();
-    setTimeout(() => {
-      if (!window.closed) {
-        window.location.href = '../index.html';
-      }
-    }, 100);
+    window.location.href = '../index.html';
   });
 });
 
