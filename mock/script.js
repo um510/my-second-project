@@ -10,7 +10,7 @@
  * @returns {void}
  */
 document.addEventListener('DOMContentLoaded', () => {
-  const API_BASE = window.API_BASE_URL || 'http://localhost:3000';
+  const API_BASE = window.API_BASE_URL || 'https://product-master-api.onrender.com';
   const productTable = document.querySelector('.product-table tbody');
   const codeInput = document.getElementById('code');
   const nameInput = document.getElementById('name');
@@ -81,6 +81,34 @@ document.addEventListener('DOMContentLoaded', () => {
     showNewMode();
   }
 
+  async function fetchProductByCode(code) {
+    // 優先: 1件取得API
+    const singleResp = await fetch(`${API_BASE}/products/${encodeURIComponent(code)}`);
+    if (singleResp.ok) {
+      return await singleResp.json();
+    }
+    if (singleResp.status !== 404) {
+      throw new Error(`HTTP ${singleResp.status}`);
+    }
+
+    // 互換: 注文画面向け1件取得API
+    const orderCodeResp = await fetch(`${API_BASE}/order-codes/${encodeURIComponent(code)}`);
+    if (orderCodeResp.ok) {
+      return await orderCodeResp.json();
+    }
+    if (orderCodeResp.status !== 404) {
+      throw new Error(`HTTP ${orderCodeResp.status}`);
+    }
+
+    // 最終手段: 一覧から一致コードを抽出
+    const listResp = await fetch(`${API_BASE}/products`);
+    if (!listResp.ok) {
+      throw new Error(`HTTP ${listResp.status}`);
+    }
+    const list = await listResp.json();
+    return list.find((item) => String(item.code) === code) || null;
+  }
+
   async function fillByCodeFromDb() {
     const code = codeInput.value.trim();
     if (!code) {
@@ -91,8 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const resp = await fetch(`${API_BASE}/products/${code}`);
-      if (resp.status === 404) {
+      const item = await fetchProductByCode(code);
+      if (!item) {
         // 存在しない場合は名称・金額を初期化
         nameInput.value = '';
         priceInput.value = '';
@@ -100,17 +128,15 @@ document.addEventListener('DOMContentLoaded', () => {
         showNewMode();
         return;
       }
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
-      }
 
-      const item = await resp.json();
       nameInput.value = item.name ?? '';
       priceInput.value = item.price ?? '';
       existingCodes.add(String(item.code));
       showExistingMode();
     } catch (err) {
       console.error('コード検索失敗', err);
+      // 通信失敗時でも、現時点のコード一致判定でボタン状態を維持する。
+      refreshButtonStateByCode();
     }
   }
 
@@ -125,6 +151,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // コード入力：数字のみ
   codeInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    // 入力中でも一致/不一致を即時反映してボタン状態を切り替える。
+    refreshButtonStateByCode();
+
+    if (!e.target.value.trim()) {
+      nameInput.value = '';
+      priceInput.value = '';
+    }
   });
   // コード欄からフォーカスが外れたタイミングで存在判定する
   codeInput.addEventListener('blur', fillByCodeFromDb);
@@ -156,6 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
         productTable.appendChild(tr);
       });
       syncProductTableScrollLayout();
+      // 一覧再表示後は入力欄とボタン状態を初期化する。
+      resetInputs();
       showOnlyClose();
     } catch (err) {
       console.error('ロード失敗', err);
@@ -185,19 +220,11 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ code, name, price })
       });
       if (!resp.ok) throw new Error(await resp.text());
-      const created = await resp.json();
-
-      // テーブルに追加
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td class="code">${created.code}</td><td class="name">${created.name}</td><td class="price">${created.price}</td>`;
-      bindRowClick(tr);
-      productTable.appendChild(tr);
-      existingCodes.add(String(created.code));
-      syncProductTableScrollLayout();
+      await resp.json();
+      // 作成後は一覧を再取得し、コード昇順の表示をサーバ結果に合わせる。
+      await loadProducts();
 
       alert('登録が完了しました');
-      resetInputs();
-      showOnlyClose();
     } catch (err) {
       console.error(err);
       alert('登録に失敗しました');
@@ -232,21 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return;
       }
-      const updated = await resp.json();
-
-      // テーブルの該当行を更新
-      const rows = productTable.querySelectorAll('tr');
-      rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells[0].textContent.trim() === code) {
-          cells[1].textContent = updated.name;
-          cells[2].textContent = updated.price;
-        }
-      });
+      await resp.json();
+      // 更新後も一覧を再取得して表示を最新化する。
+      await loadProducts();
 
       alert('更新が完了しました');
-      resetInputs();
-      showOnlyClose();
     } catch (err) {
       console.error(err);
       alert('更新に失敗しました');
@@ -276,21 +293,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return;
       }
-
-      // テーブルから該当行を削除
-      const rows = productTable.querySelectorAll('tr');
-      rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells[0].textContent.trim() === code) {
-          row.remove();
-        }
-      });
-      existingCodes.delete(code);
-      syncProductTableScrollLayout();
+      // 削除後も一覧を再取得して表示整合を保つ。
+      await loadProducts();
 
       alert('削除が完了しました');
-      resetInputs();
-      showOnlyClose();
     } catch (err) {
       console.error(err);
       alert('削除に失敗しました');
@@ -298,13 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   closeBtn.addEventListener('click', () => {
-    // 開かれ方によって window.close が無効な場合があるため、メニューへ戻るフォールバックを用意する。
-    window.close();
-    setTimeout(() => {
-      if (!window.closed) {
-        window.location.href = '../index.html';
-      }
-    }, 100);
+    window.location.href = '../index.html';
   });
 });
 

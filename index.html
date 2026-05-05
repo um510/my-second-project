@@ -41,8 +41,18 @@
       text-align: center;
     }
     .menu-link:hover { background: #ffe8a1; }
+    .admin-link-wrap {
+      margin-top: 168px;
+    }
+    .admin-link {
+      background: #f7b26a;
+      border-color: #b56f2a;
+    }
+    .admin-link:hover {
+      background: #ec9a4b;
+    }
     .button-row {
-      margin-top: clamp(120px, 28vh, 260px);
+      margin-top: 24px;
       display: flex;
       justify-content: flex-end;
     }
@@ -64,7 +74,11 @@
       <h1 class="title">＜メニュー画面＞</h1>
       <nav class="menu-list">
         <a class="menu-link" href="mock/menu01.html">商品マスタ画面</a>
+        <a class="menu-link" href="mock/menu02.html">注文登録画面</a>
       </nav>
+      <div class="admin-link-wrap">
+        <a class="menu-link admin-link" href="mock/admin.html">管理者画面</a>
+      </div>
       <div class="button-row">
         <button class="btn" id="close">終了</button>
       </div>
