@@ -55,6 +55,51 @@ app.post('/products', async (req, res) => {
   }
 });
 
+// PUT /products/:code - update one product in s_master
+app.put('/products/:code', async (req, res) => {
+  const { code } = req.params;
+  const { name, price } = req.body || {};
+  if (!code) {
+    return res.status(400).json({ error: 'code required' });
+  }
+  if (!name || price == null) {
+    return res.status(400).json({ error: 'name/price required' });
+  }
+
+  try {
+    const result = await pool.query(
+      'UPDATE s_master SET name = $1, kingaku = $2 WHERE code = $3 RETURNING code, name, kingaku AS price',
+      [name, price, code]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('DB error', err);
+    res.status(500).json({ error: 'database error' });
+  }
+});
+
+// DELETE /products/:code - delete one product from s_master
+app.delete('/products/:code', async (req, res) => {
+  const { code } = req.params;
+  if (!code) {
+    return res.status(400).json({ error: 'code required' });
+  }
+
+  try {
+    const result = await pool.query('DELETE FROM s_master WHERE code = $1', [code]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'not found' });
+    }
+    res.json({ message: 'deleted', code: String(code) });
+  } catch (err) {
+    console.error('DB error', err);
+    res.status(500).json({ error: 'database error' });
+  }
+});
+
 // GET /order-codes/:code - return one row from s_master for order entry
 app.get('/order-codes/:code', async (req, res) => {
   const { code } = req.params;
@@ -212,6 +257,41 @@ app.delete('/orders', async (req, res) => {
     }
 
     res.json({ message: 'deleted', deleted_count: result.rowCount });
+  } catch (err) {
+    console.error('DB error', err);
+    res.status(500).json({ error: 'database error' });
+  }
+});
+
+// PUT /orders - update one row in s_order by date/time/original_code
+app.put('/orders', async (req, res) => {
+  const { purchase_date, purchase_time, original_code, code, quantity } = req.body || {};
+  if (!purchase_date || !purchase_time || !code || quantity == null) {
+    return res.status(400).json({ error: 'purchase_date/purchase_time/code/quantity required' });
+  }
+
+  try {
+    const normalizedDate = String(purchase_date).replace(/\//g, '-');
+    const targetCode = String(original_code || code);
+    const result = await pool.query(
+      `UPDATE s_order
+       SET code = $4,
+           quantity = $5
+       WHERE purchase_date = $1
+         AND to_char(purchase_time, 'HH24:MI') = $2
+         AND code = $3
+       RETURNING purchase_date::text AS purchase_date,
+                 to_char(purchase_time, 'HH24:MI') AS purchase_time,
+                 code,
+                 quantity`,
+      [normalizedDate, String(purchase_time), targetCode, String(code), Number(quantity)]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'not found' });
+    }
+
+    res.json(result.rows[0]);
   } catch (err) {
     console.error('DB error', err);
     res.status(500).json({ error: 'database error' });

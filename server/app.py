@@ -295,6 +295,54 @@ def delete_order():
         return jsonify({'error': 'database error'}), 500
 
 
+@app.route('/orders', methods=['PUT'])
+def update_order():
+    data = request.get_json() or {}
+    purchase_date = data.get('purchase_date')
+    purchase_time = data.get('purchase_time')
+    original_code = data.get('original_code')
+    code = data.get('code')
+    quantity = data.get('quantity')
+
+    if not purchase_date or not purchase_time or not code or quantity is None:
+        return jsonify({'error': 'purchase_date/purchase_time/code/quantity required'}), 400
+
+    try:
+        normalized_date = str(purchase_date).replace('/', '-')
+        target_code = str(original_code or code)
+
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            '''
+            UPDATE s_order
+            SET code = %s,
+                quantity = %s
+            WHERE purchase_date = %s
+              AND to_char(purchase_time, 'HH24:MI') = %s
+              AND code = %s
+            RETURNING
+              purchase_date::text AS purchase_date,
+              to_char(purchase_time, 'HH24:MI') AS purchase_time,
+              code,
+              quantity
+            ''',
+            (str(code), int(quantity), normalized_date, str(purchase_time), target_code)
+        )
+        updated = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not updated:
+            return jsonify({'error': 'not found'}), 404
+
+        return jsonify(updated), 200
+    except Exception as e:
+        print('db error', e)
+        return jsonify({'error': 'database error'}), 500
+
+
 @app.route('/products/<code>', methods=['PUT'])
 def update_product(code):
     if not code:
