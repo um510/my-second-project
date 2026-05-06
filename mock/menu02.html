@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>注文登録画面</title>
   <style>
+    :root {
+      --order-scrollbar-width: 18px;
+      --order-table-wrap-height: 376px;
+      --order-header-height: 43px;
+    }
+
     * {
       box-sizing: border-box;
       font-family: 'Segoe UI', 'Meiryo', Arial, sans-serif;
@@ -39,6 +45,34 @@
       background: #fff;
       border: 1px solid #000;
       table-layout: fixed;
+    }
+
+    .order-table-wrap {
+      height: var(--order-table-wrap-height);
+      background: #d3d3d3;
+    }
+
+    .order-table-wrap .order-table {
+      border: 1px solid #000;
+    }
+
+    .order-table thead,
+    .order-table tbody tr {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    .order-table tbody {
+      display: block;
+      max-height: calc(var(--order-table-wrap-height) - var(--order-header-height));
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .order-table tbody.has-scroll {
+      width: calc(100% + var(--order-scrollbar-width));
+      margin-right: calc(-1 * var(--order-scrollbar-width));
     }
 
     .order-table th {
@@ -189,21 +223,23 @@
     <section class="container" aria-label="注文登録画面">
       <h1 class="title">＜注文登録画面＞</h1>
 
-      <table class="order-table">
-        <thead>
-          <tr>
-            <th class="col-date">購入日</th>
-            <th class="col-code">コード</th>
-            <th class="col-name">名称</th>
-            <th class="col-price">金額</th>
-            <th class="col-qty">数量</th>
-            <th class="col-amount">合計金額</th>
-          </tr>
-        </thead>
-        <tbody id="orderRows">
-          <!-- 画面遷移時に /orders から読み込んで描画する -->
-        </tbody>
-      </table>
+      <div class="order-table-wrap" aria-label="注文一覧">
+        <table class="order-table">
+          <thead>
+            <tr>
+              <th class="col-date">購入日</th>
+              <th class="col-code">コード</th>
+              <th class="col-name">名称</th>
+              <th class="col-price">金額</th>
+              <th class="col-qty">数量</th>
+              <th class="col-amount">合計金額</th>
+            </tr>
+          </thead>
+          <tbody id="orderRows">
+            <!-- 画面遷移時に /orders から読み込んで描画する -->
+          </tbody>
+        </table>
+      </div>
 
       <div class="form-grid">
         <div class="field">
@@ -250,6 +286,7 @@
     const API_BASE_CANDIDATES = [API_BASE];
     let activeApiBase = API_BASE;
     let hasShownOrdersEndpointError = false;
+    const orderTableBody = document.querySelector('.order-table tbody');
     const orderRows = document.getElementById('orderRows');
     const purchaseDateInput = document.getElementById('purchaseDate');
     const purchaseTimeInput = document.getElementById('purchaseTime');
@@ -262,6 +299,7 @@
     const updateButton = document.getElementById('update');
     const deleteButton = document.getElementById('delete');
     let ordersApiAvailable = true;
+    let selectedOrderOriginalCode = '';
 
     // ローカル実行時のポート差異を吸収するため、候補APIへ順に接続する。
     async function fetchWithApiFallback(path, options = {}) {
@@ -280,6 +318,26 @@
       }
 
       throw lastNetworkError || new Error('API fetch failed');
+    }
+
+    // OS/ブラウザ差を吸収するためスクロールバー幅を実測し、表幅補正へ反映する。
+    function applyOrderScrollbarWidth() {
+      const probe = document.createElement('div');
+      probe.style.position = 'absolute';
+      probe.style.top = '-9999px';
+      probe.style.width = '100px';
+      probe.style.height = '100px';
+      probe.style.overflow = 'scroll';
+      document.body.appendChild(probe);
+      const scrollbarWidth = probe.offsetWidth - probe.clientWidth;
+      document.body.removeChild(probe);
+      document.documentElement.style.setProperty('--order-scrollbar-width', `${scrollbarWidth}px`);
+    }
+
+    // 縦スクロールの有無に応じて表幅補正を切り替え、左位置のズレを防ぐ。
+    function syncOrderTableScrollLayout() {
+      const hasScroll = orderTableBody.scrollHeight > orderTableBody.clientHeight + 1;
+      orderTableBody.classList.toggle('has-scroll', hasScroll);
     }
 
     // 日付8桁を yyyy/mm/dd へ整形する。
@@ -392,6 +450,7 @@
         purchaseDateInput.value = datePart;
         purchaseTimeInput.value = timePart;
         codeInput.value = cells[1].textContent.trim();
+        selectedOrderOriginalCode = cells[1].textContent.trim();
         nameInput.value = cells[2].textContent.trim();
         amountValueInput.value = cells[3].textContent.trim();
         quantityInput.value = cells[4].textContent.trim();
@@ -416,6 +475,7 @@
         bindRowClick(tr);
         orderRows.appendChild(tr);
       });
+      syncOrderTableScrollLayout();
       refreshButtonStateByOrderKey();
     }
 
@@ -459,6 +519,7 @@
 
         if (response.status === 404) {
           // 指定日時の注文が存在しない場合はコード/数量を初期化する。
+          selectedOrderOriginalCode = '';
           codeInput.value = '';
           quantityInput.value = '';
           clearProductFields();
@@ -471,6 +532,7 @@
         }
 
         const order = await response.json();
+  selectedOrderOriginalCode = String(order.code ?? '');
         codeInput.value = String(order.code ?? '');
         quantityInput.value = String(order.quantity ?? '');
         // コード起点の表示項目は s_master 参照ロジックで統一する。
@@ -532,8 +594,38 @@
       }
     }
 
+    // 作成/更新/削除前に、入力コードが s_master に存在するかを必ず確認する。
+    async function ensureCodeRegisteredInMaster(code) {
+      try {
+        const product = await fetchProductFromMaster(code);
+        if (product) {
+          return true;
+        }
+
+        alert('コードが登録されていません。確認してください。');
+        return false;
+      } catch (error) {
+        console.error('コード存在確認に失敗しました', error);
+        alert(`コード確認に失敗しました。\n${error.message}`);
+        return false;
+      }
+    }
+
+    // DB処理成功後は入力項目を初期化し、次入力のため購入日にフォーカスする。
+    function clearInputsAndFocusPurchaseDate() {
+      purchaseDateInput.value = '';
+      purchaseTimeInput.value = '';
+      codeInput.value = '';
+      selectedOrderOriginalCode = '';
+      quantityInput.value = '';
+      clearProductFields();
+      applyOrderModeByOrderKeyExists(false);
+      purchaseDateInput.focus();
+    }
+
     // 画面遷移時に s_order 一覧を確実に再取得する。
     function initializeOrderScreen() {
+      applyOrderScrollbarWidth();
       loadOrders();
     }
 
@@ -548,6 +640,11 @@
       if (event.persisted) {
         loadOrders();
       }
+    });
+
+    window.addEventListener('resize', () => {
+      applyOrderScrollbarWidth();
+      syncOrderTableScrollLayout();
     });
 
     // 初期状態は新規モードとし、注文キー入力でモードを切り替える。
@@ -593,8 +690,17 @@
       const code = codeInput.value.trim();
       const quantity = Number(quantityInput.value);
 
-      if (!purchaseDate || !purchaseTime || !code || !Number.isFinite(quantity)) {
-        alert('購入日・購入時刻・コード・数量を正しく入力してください。');
+      if (!purchaseDate || !purchaseTime || !code) {
+        alert('購入日・購入時刻・コードを正しく入力してください。');
+        return;
+      }
+
+      if (!quantityInput.value.trim() || !Number.isFinite(quantity) || quantity <= 0) {
+        alert('数量が入力されていません。');
+        return;
+      }
+
+      if (!(await ensureCodeRegisteredInMaster(code))) {
         return;
       }
 
@@ -633,12 +739,64 @@
         await loadOrders();
 
         alert(`s_order へ登録しました。\n接続先: ${activeApiBase}`);
+        clearInputsAndFocusPurchaseDate();
       } catch (error) {
         console.error('注文登録に失敗しました', error);
         alert(`注文登録に失敗しました。\n${error.message}`);
       }
     });
-    updateButton.addEventListener('click', () => alert('更新処理は今後実装予定です。'));
+    updateButton.addEventListener('click', async () => {
+      const purchaseDate = purchaseDateInput.value.trim();
+      const purchaseTime = purchaseTimeInput.value.trim();
+      const code = codeInput.value.trim();
+      const quantity = Number(quantityInput.value);
+      const originalCode = (selectedOrderOriginalCode || code).trim();
+
+      if (!purchaseDate || !purchaseTime || !code) {
+        alert('購入日・購入時刻・コードを正しく入力してください。');
+        return;
+      }
+
+      if (!quantityInput.value.trim() || !Number.isFinite(quantity) || quantity <= 0) {
+        alert('数量が入力されていません。');
+        return;
+      }
+
+      if (!(await ensureCodeRegisteredInMaster(code))) {
+        return;
+      }
+
+      try {
+        const response = await fetchWithApiFallback('/orders', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            purchase_date: purchaseDate,
+            purchase_time: purchaseTime,
+            original_code: originalCode,
+            code,
+            quantity
+          })
+        });
+
+        if (response.status === 404) {
+          throw new Error('更新対象が見つからないか、接続先が注文更新API (/orders PUT) に未対応です。');
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status} ${errorText}`);
+        }
+
+        await loadOrders();
+
+        alert(`注文を更新しました。\n接続先: ${activeApiBase}`);
+        clearInputsAndFocusPurchaseDate();
+      } catch (error) {
+        console.error('注文更新に失敗しました', error);
+        alert(`注文更新に失敗しました。\n${error.message}`);
+      }
+    });
     deleteButton.addEventListener('click', async () => {
       const purchaseDate = purchaseDateInput.value.trim();
       const purchaseTime = purchaseTimeInput.value.trim();
@@ -675,12 +833,8 @@
         }
 
         await loadOrders();
-        clearProductFields();
-        codeInput.value = '';
-        quantityInput.value = '';
-        totalAmountInput.value = '';
-
         alert(`注文を削除しました。\n接続先: ${activeApiBase}`);
+        clearInputsAndFocusPurchaseDate();
       } catch (error) {
         console.error('注文削除に失敗しました', error);
         alert(`注文削除に失敗しました。\n${error.message}`);
