@@ -132,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
+      setLoading(true);
       const item = await fetchProductByCode(code);
       if (!item) {
         // 存在しない場合は名称・金額を初期化
@@ -150,6 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('コード検索失敗', err);
       // 通信失敗時でも、現時点のコード一致判定でボタン状態を維持する。
       refreshButtonStateByCode();
+    } finally {
+      setLoading(false);
     }
   }
 
