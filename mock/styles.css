@@ -16,6 +16,32 @@ body {
   color: #333;
 }
 
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(211, 211, 211, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 25vh;
+  z-index: 9999;
+}
+
+.loading-overlay[hidden] {
+  display: none;
+}
+
+.loading-panel {
+  min-width: 220px;
+  padding: 16px 24px;
+  border: 1px solid #666;
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .container {
   display: flex;
   flex-direction: column;

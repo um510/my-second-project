@@ -19,7 +19,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const updateBtn = document.getElementById('update');
   const deleteBtn = document.getElementById('delete');
   const closeBtn = document.getElementById('close');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const loadingPanel = document.querySelector('#loadingOverlay .loading-panel');
   const existingCodes = new Set();
+
+  function setLoading(isLoading, message = '処理中です。しばらくお待ちください。') {
+    if (!loadingOverlay) {
+      return;
+    }
+    if (loadingPanel) {
+      loadingPanel.textContent = message;
+    }
+    loadingOverlay.hidden = !isLoading;
+    loadingOverlay.setAttribute('aria-busy', String(isLoading));
+  }
 
   // OS/ブラウザごとの差を吸収するため、スクロールバー幅を実測してCSS変数に反映する。
   function applyScrollbarWidth() {
@@ -174,7 +187,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // サーバから一覧を取得してテーブルに書き出す
-  async function loadProducts() {
+  async function loadProducts(options = {}) {
+    const { withOverlay = true } = options;
+    if (withOverlay) {
+      setLoading(true, '画面表示中です。しばらくお待ちください。');
+    }
     try {
       const resp = await fetch(`${API_BASE}/products`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -195,6 +212,10 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error('ロード失敗', err);
       alert('データの読み込みに失敗しました。サーバーが起動しているか確認してください。');
+    } finally {
+      if (withOverlay) {
+        setLoading(false);
+      }
     }
   }
 
@@ -214,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
+      setLoading(true);
       const resp = await fetch(`${API_BASE}/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -222,12 +244,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!resp.ok) throw new Error(await resp.text());
       await resp.json();
       // 作成後は一覧を再取得し、コード昇順の表示をサーバ結果に合わせる。
-      await loadProducts();
+      await loadProducts({ withOverlay: false });
 
       alert('登録が完了しました');
     } catch (err) {
       console.error(err);
       alert('登録に失敗しました');
+    } finally {
+      setLoading(false);
     }
   });
   
@@ -246,6 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
+      setLoading(true);
       const resp = await fetch(`${API_BASE}/products/${code}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -261,12 +286,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       await resp.json();
       // 更新後も一覧を再取得して表示を最新化する。
-      await loadProducts();
+      await loadProducts({ withOverlay: false });
 
       alert('更新が完了しました');
     } catch (err) {
       console.error(err);
       alert('更新に失敗しました');
+    } finally {
+      setLoading(false);
     }
   });
   
@@ -282,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
+      setLoading(true);
       const resp = await fetch(`${API_BASE}/products/${code}`, {
         method: 'DELETE'
       });
@@ -294,12 +322,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       // 削除後も一覧を再取得して表示整合を保つ。
-      await loadProducts();
+      await loadProducts({ withOverlay: false });
 
       alert('削除が完了しました');
     } catch (err) {
       console.error(err);
       alert('削除に失敗しました');
+    } finally {
+      setLoading(false);
     }
   });
   
